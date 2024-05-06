@@ -22,6 +22,8 @@ class User(BaseModel):
 
 class Order(BaseModel):
     user_id: int
+    payment_link: str
+    code_id: str
     status: str
     date: datetime
 

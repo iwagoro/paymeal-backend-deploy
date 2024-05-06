@@ -29,6 +29,8 @@ class Orders(Base):
     __tablename__ = "orders"
     id = Column(String(255), primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"))
+    code_id = Column(String(255),nullable=True)
+    payment_link = Column(String(255),nullable=True)
     status = Column(String(255))  # not_purchased , processing  ,  purchased , ordered , completed
     date = Column(DateTime, nullable=True)
 

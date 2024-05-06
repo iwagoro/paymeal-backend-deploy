@@ -2,3 +2,4 @@ __pycache__
 app/__pycache__
 app/.env
 sample_db.sqlite3
+app/endpoints/__pycache__
