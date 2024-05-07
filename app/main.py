@@ -1,18 +1,12 @@
-from fastapi import FastAPI, HTTPException, Depends
-from sqlalchemy.orm import Session
-from typing import List
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from .schema import Ticket, User, Order, OrderItem
-from .database import Tickets, Users, SessionClass, Orders, OrderItems
 from fastapi.middleware.cors import CORSMiddleware
-from .paypay import create_payment
+from fastapi import FastAPI
 
 from mangum import Mangum
 from .endpoints.ticket import router as ticket_router
 from .endpoints.user import router as user_router
 from .endpoints.cart import router as cart_router
 from .endpoints.payment import router as payment_router
+from .endpoints.order import router as order_router
 
 # FastAPI のアプリケーションを作成
 app = FastAPI()
@@ -38,3 +32,4 @@ app.include_router(ticket_router)
 app.include_router(user_router)
 app.include_router(cart_router)
 app.include_router(payment_router)
+app.include_router(order_router)

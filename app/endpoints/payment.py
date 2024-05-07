@@ -4,6 +4,7 @@ from ..database import  Users , Orders , OrderItems , Tickets
 from fastapi import APIRouter
 from ..database import SessionClass
 from ..paypay import create_payment , get_payment_details , delete_payment
+from ..schema import UserId
 
 
 router = APIRouter()
@@ -18,22 +19,25 @@ def get_db():
         
 
 #カート内の商品を購入するためのQRコードを作成するエンドポイント、statusはprocessingに変更
-@router.post("/payment-link/{user_id}", response_model=str)
-def create_order(user_id: int, db: Session = Depends(get_db)):
+@router.post("/payment-link", response_model=str)
+def create_order(user_id: UserId, db: Session = Depends(get_db)):
     # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(id=user_id).first()
+    user = db.query(Users).filter_by(id=user_id.id).first()
     if not user:
         # ユーザーが存在しない場合は 400 エラーを返す
         raise HTTPException(status_code=400, detail="User not found")
 
     # カートを検索
-    cart = db.query(Orders).filter(Orders.user_id == user_id,Orders.status=="not_purchased").first()
+    cart = db.query(Orders).filter(Orders.user_id == user_id.id,Orders.status=="not_purchased").first()
 
     if not cart:
         # カートが存在しない場合は 400 エラーを返す
         raise HTTPException(status_code=400, detail="Cart is empty")
 
     cart_items = db.query(OrderItems).filter_by(order_id=cart.id).all()
+    if not cart_items:
+        # カートが存在しない場合は 400 エラーを返す
+        raise HTTPException(status_code=400, detail="Cart is empty")
 
     order_content = []
     for item in cart_items:
@@ -60,16 +64,16 @@ def create_order(user_id: int, db: Session = Depends(get_db)):
     return url
 
 #QRコードリンクを削除するエンドポイント
-@router.delete("/payment-link/{user_id}", response_model=str)
-def delete_order(user_id: int, db: Session = Depends(get_db)):
+@router.delete("/payment-link", response_model=str)
+def delete_order(user_id: UserId, db: Session = Depends(get_db)):
     # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(id=user_id).first()
+    user = db.query(Users).filter_by(id=user_id.id).first()
     if not user:
         # ユーザーが存在しない場合は 400 エラーを返す
         raise HTTPException(status_code=400, detail="User not found")
 
     # カートを検索
-    cart = db.query(Orders).filter_by(user_id=user_id, status="processing").first()
+    cart = db.query(Orders).filter_by(user_id=user_id.id, status="processing").first()
     if not cart:
         # カートが存在しない場合は 400 エラーを返す
         raise HTTPException(status_code=400, detail="Cart not found")
@@ -89,16 +93,16 @@ def delete_order(user_id: int, db: Session = Depends(get_db)):
     
 
 # 決済が完了したか確認するエンドポイント
-@router.post("/payment-status/{user_id}", response_model=str)
-def complete_purchase(user_id: int, db: Session = Depends(get_db)):
+@router.post("/payment-status", response_model=str)
+def complete_purchase(user_id: UserId, db: Session = Depends(get_db)):
     # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(id=user_id).first()
+    user = db.query(Users).filter_by(id=user_id.id).first()
     if not user:
         # ユーザーが存在しない場合は 400 エラーを返す
         raise HTTPException(status_code=400, detail="User not found")
 
     # カートを検索
-    cart = db.query(Orders).filter_by(user_id=user_id, status="processing").first()
+    cart = db.query(Orders).filter_by(user_id=user_id.id, status="processing").first()
     if not cart:
         # カートが存在しない場合は 400 エラーを返す
         raise HTTPException(status_code=400, detail="Cart not found")
@@ -117,16 +121,16 @@ def complete_purchase(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Payment not completed")
 
 # 決済をキャンセルするエンドポイント
-@router.delete("/payment-status/{user_id}", response_model=str)
-def cancel_purchase(user_id: int, db: Session = Depends(get_db)):
+@router.delete("/payment-status", response_model=str)
+def cancel_purchase(user_id: UserId, db: Session = Depends(get_db)):
     # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(id=user_id).first()
+    user = db.query(Users).filter_by(id=user_id.id).first()
     if not user:
         # ユーザーが存在しない場合は 400 エラーを返す
         raise HTTPException(status_code=400, detail="User not found")
     
     # カートを検索
-    cart = db.query(Orders).filter_by(user_id=user_id, status="processing").first()
+    cart = db.query(Orders).filter_by(user_id=user_id.id, status="processing").first()
     if not cart:
         # カートが存在しない場合は 400 エラーを返す
         raise HTTPException(status_code=400, detail="Cart not found")

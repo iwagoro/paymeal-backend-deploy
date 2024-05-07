@@ -3,7 +3,6 @@ from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateT
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.sql import func
 import uuid
-
 engine = create_engine("sqlite:///sample_db.sqlite3", echo=True)
 SessionClass = sessionmaker(bind=engine)
 Base = declarative_base()
@@ -11,7 +10,7 @@ Base = declarative_base()
 
 class Users(Base):
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String(255), primary_key=True, )
     email = Column(String(255), unique=True)
 
 
@@ -28,7 +27,7 @@ class Tickets(Base):
 class Orders(Base):
     __tablename__ = "orders"
     id = Column(String(255), primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(String(255), ForeignKey("users.id"))
     code_id = Column(String(255),nullable=True)
     payment_link = Column(String(255),nullable=True)
     status = Column(String(255))  # not_purchased , processing  ,  purchased , ordered , completed
@@ -58,3 +57,4 @@ Base.metadata.create_all(engine)
 
 
 ##TZ が違う
+#psycopg2のインストール
