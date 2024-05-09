@@ -18,26 +18,32 @@ def get_db():
         
         
 #ユーザのカートの商品一覧を取得するエンドポイント
-@router.get("/carts/{user_id}")
-def get_carts(user_id: str, db: Session = Depends(get_db)):
+@router.post("/cart_info")
+def get_carts(user_id: UserId, db: Session = Depends(get_db)):
     # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(id=user_id).first()
+    user = db.query(Users).filter_by(id=user_id.id).first()
     if not user:
         # ユーザーが存在しない場合は 400 エラーを返す
         raise HTTPException(status_code=400, detail="User not found")
 
     # ユーザーのカートを取得
-    cart = db.query(Orders).filter_by(user_id=user_id, status="not_purchased").first()
+    cart = db.query(Orders).filter_by(user_id=user_id.id, status="not_purchased").first()
     if not cart:
         # カートが存在しない場合は空のリストを返す
         return []
 
     # カートのアイテムを取得
     cart_items = db.query(OrderItems).filter_by(order_id=cart.id).all()
-    return cart_items
+    
+    tickets = []
+    for item in cart_items:
+        ticket = db.query(Tickets).filter_by(id=item.ticket_id).first()
+        tickets.append({"ticket": ticket, "quantity": item.quantity})
+        
+    return tickets
 
 #カートに商品を追加するエンドポイント（すでに存在する場合はインクリメント）
-@router.post("/carts", response_model=str)
+@router.post("/cart", response_model=str)
 def add_ticket_to_cart(cartInput: Cart, db: Session = Depends(get_db)):
     # ユーザーとチケットが存在するか確認
     user = db.query(Users).filter_by(id=cartInput.user_id).first()
@@ -74,7 +80,7 @@ def add_ticket_to_cart(cartInput: Cart, db: Session = Depends(get_db)):
     return "Ticket added to cart"
 
 #カートの商品の個数を1個減らすエンドポイント（0個になった場合は削除）
-@router.delete("/carts", response_model=str)
+@router.delete("/cart", response_model=str)
 def remove_ticket_from_cart(cartInput:Cart, db: Session = Depends(get_db)):
     # ユーザーとチケットが存在するか確認
     user = db.query(Users).filter_by(id=cartInput.user_id).first()

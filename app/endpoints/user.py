@@ -17,14 +17,18 @@ def get_db():
         db.close()
 
 
-#全てのユーザーを取得するエンドポイント
-@router.get("/users")
-def get_users(db: Session = Depends(get_db)):
-    return db.query(Users).all()
+#ユーザー情報を取得するエンドポイント
+@router.post("/user_info")
+def get_users(user_email:UserEmail,db: Session = Depends(get_db)):
+    # ユーザーが存在するか確認
+    user = db.query(Users).filter_by(email=user_email.email).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
+    return user
 
 
 #新しいユーザーを作成するエンドポイント
-@router.post("/users", response_model=str)
+@router.post("/user", response_model=str)
 def create_user(user_email: UserEmail, db: Session = Depends(get_db)):
     # 既存のユーザーを検索
     existing_user = db.query(Users).filter_by(email=user_email.email).first()
@@ -42,7 +46,7 @@ def create_user(user_email: UserEmail, db: Session = Depends(get_db)):
 
 
 #既存ユーザを削除するエンドポイント
-@router.delete("/users", response_model=str)
+@router.delete("/user", response_model=str)
 def delete_user(user_id: UserId, db: Session = Depends(get_db)):
     # ユーザーが存在するか確認
     user = db.query(Users).filter_by(id=user_id.id).first()
