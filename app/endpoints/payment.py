@@ -1,43 +1,41 @@
-from fastapi import  HTTPException, Depends
+from fastapi import HTTPException, Depends, APIRouter
 from sqlalchemy.orm import Session
-from ..database import  Users , Orders , OrderItems , Tickets
-from fastapi import APIRouter
-from ..database import SessionClass
-from ..paypay import create_payment , get_payment_details , delete_payment
-from ..schema import UserId
-
+from ..database import Users, Orders, OrderItems, Tickets
+from ..paypay import create_payment, get_payment_details
+from .util.util import get_db, verify_token
 
 router = APIRouter()
 
-# データベースセッションを作成する依存関係
-def get_db():
-    db = SessionClass()
-    try:
-        yield db
-    finally:
-        db.close()
-        
 
-#カート内の商品を購入するためのQRコードを作成するエンドポイント、statusはprocessingに変更
-@router.post("/payment-link", response_model=str)
-def create_order(user_id: UserId, db: Session = Depends(get_db)):
-    # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(id=user_id.id).first()
+# * チケットを減らす関数
+def decrease_ticket_quantity(tickets, db: Session):
+    for item in tickets:
+        ticket = db.query(Tickets).filter_by(id=item.ticket_id).first()
+        ticket.stock -= item.quantity
+        db.add(ticket)
+
+
+#! カート内の商品を購入するためのQRコードを作成するエンドポイント、statusはprocessingに変更
+@router.get("/payment/{order_id}", status_code=200)
+def create_order(order_id: str, user=Depends(verify_token), db: Session = Depends(get_db)):
+    # ユーザーを検索
+    user = db.query(Users).filter_by(email=user["email"]).first()
     if not user:
-        # ユーザーが存在しない場合は 400 エラーを返す
-        raise HTTPException(status_code=400, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found")
 
-    # カートを検索
-    cart = db.query(Orders).filter(Orders.user_id == user_id.id,Orders.status=="not_purchased").first()
-
+    #  カートを検索
+    cart = db.query(Orders).filter_by(user_id=user.id, id=order_id).first()
     if not cart:
-        # カートが存在しない場合は 400 エラーを返す
-        raise HTTPException(status_code=400, detail="Cart is empty")
+        # カートが存在しない場合は 404 エラーを返す
+        raise HTTPException(status_code=404, detail="Cart is not exist")
+
+    if cart.status != "not_purchased":
+        raise HTTPException(status_code=400, detail="Cart is already purchased")
 
     cart_items = db.query(OrderItems).filter_by(order_id=cart.id).all()
     if not cart_items:
-        # カートが存在しない場合は 400 エラーを返す
-        raise HTTPException(status_code=400, detail="Cart is empty")
+        # カートが存在しない場合は 404 エラーを返す
+        raise HTTPException(status_code=404, detail="Cart is empty")
 
     order_content = []
     for item in cart_items:
@@ -53,7 +51,7 @@ def create_order(user_id: UserId, db: Session = Depends(get_db)):
         )
 
     total = sum([item.quantity * db.query(Tickets).filter_by(id=item.ticket_id).first().price for item in cart_items])
-    url,code_id = create_payment(cart.id,order_content, total)
+    url, code_id = create_payment(cart.id, order_content, total)
 
     cart.status = "processing"
     cart.code_id = code_id
@@ -63,87 +61,31 @@ def create_order(user_id: UserId, db: Session = Depends(get_db)):
     db.refresh(cart)
     return url
 
-#QRコードリンクを削除するエンドポイント
-@router.delete("/payment-link", response_model=str)
-def delete_order(user_id: UserId, db: Session = Depends(get_db)):
-    # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(id=user_id.id).first()
+
+#! 決済が完了したか確認するエンドポイント
+@router.post("/payment/{order_id}", status_code=200)
+def complete_purchase(order_id: str, user=Depends(verify_token), db: Session = Depends(get_db)):
+    user = db.query(Users).filter_by(email=user["email"]).first()
     if not user:
-        # ユーザーが存在しない場合は 400 エラーを返す
         raise HTTPException(status_code=400, detail="User not found")
 
     # カートを検索
-    cart = db.query(Orders).filter_by(user_id=user_id.id, status="processing").first()
+    cart = db.query(Orders).filter_by(user_id=user.id, id=order_id).first()
     if not cart:
         # カートが存在しない場合は 400 エラーを返す
-        raise HTTPException(status_code=400, detail="Cart not found")
-    
-    code_id = cart.code_id
-    state = delete_payment(code_id)
-    
-    if state == "SUCCESS":
-        cart.status = "not_purchased"
-        db.add(cart)
-        db.commit()
-        db.refresh(cart)
-        return "Order canceled"
+        raise HTTPException(status_code=404, detail="Cart is not found")
 
-    else :
-        raise HTTPException(status_code=400, detail="Payment not canceled")
-    
-
-# 決済が完了したか確認するエンドポイント
-@router.post("/payment-status", response_model=str)
-def complete_purchase(user_id: UserId, db: Session = Depends(get_db)):
-    # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(id=user_id.id).first()
-    if not user:
-        # ユーザーが存在しない場合は 400 エラーを返す
-        raise HTTPException(status_code=400, detail="User not found")
-
-    # カートを検索
-    cart = db.query(Orders).filter_by(user_id=user_id.id, status="processing").first()
-    if not cart:
-        # カートが存在しない場合は 400 エラーを返す
-        raise HTTPException(status_code=400, detail="Cart not found")
-    
     state = get_payment_details(cart.id)
-    print(state)
-    
+
     if state == "SUCCESS":
+        # チケットの在庫を減らす
+        tickets = db.query(OrderItems).filter_by(order_id=cart.id).all()
+        decrease_ticket_quantity(tickets, db)
         cart.status = "purchased"
         db.add(cart)
         db.commit()
         db.refresh(cart)
         return "Purchase completed"
 
-    else : 
+    else:
         raise HTTPException(status_code=400, detail="Payment not completed")
-
-# 決済をキャンセルするエンドポイント
-@router.delete("/payment-status", response_model=str)
-def cancel_purchase(user_id: UserId, db: Session = Depends(get_db)):
-    # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(id=user_id.id).first()
-    if not user:
-        # ユーザーが存在しない場合は 400 エラーを返す
-        raise HTTPException(status_code=400, detail="User not found")
-    
-    # カートを検索
-    cart = db.query(Orders).filter_by(user_id=user_id.id, status="processing").first()
-    if not cart:
-        # カートが存在しない場合は 400 エラーを返す
-        raise HTTPException(status_code=400, detail="Cart not found")
-    
-    id = cart.id
-    state = delete_payment(id)
-    
-    if state == "SUCCESS":
-        cart.status = "not_purchased"
-        db.add(cart)
-        db.commit()
-        db.refresh(cart)
-        return "Purchase canceled"
-    
-    else :
-        raise HTTPException(status_code=400, detail="Payment not canceled")

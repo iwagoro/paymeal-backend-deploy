@@ -1,34 +1,48 @@
-from fastapi import  HTTPException, Depends
+from fastapi import HTTPException, Depends, APIRouter, Response
 from sqlalchemy.orm import Session
-from ..schema import  Ticket
-from ..database import  Tickets
-from fastapi import APIRouter
-from ..database import SessionClass
+from ..schema import TicketSchema
+from ..database import Tickets
+from .util.util import get_db
 
 router = APIRouter()
 
-# データベースセッションを作成する依存関係
-def get_db():
-    db = SessionClass()
+
+# * 画像URLが有効か確認する関数
+def validateImageURL(url):
+    import requests
+    from PIL import Image
+    from io import BytesIO
+
     try:
-        yield db
-    finally:
-        db.close()
+        response = requests.get(url)
+        img = Image.open(BytesIO(response.content))
+        img.verify()
+        return True
+    except:
+        return False
 
-# チケット一覧を取得するエンドポイント
-@router.get("/tickets/")
+
+#! チケット一覧を取得するエンドポイント (Array)
+@router.get("/tickets/", status_code=200)
 def get_tickets(db: Session = Depends(get_db)):
-    return db.query(Tickets).all()
+    tickets = db.query(Tickets).all()
+    if not tickets:
+        return Response(status_code=204)
+    return tickets
 
 
-# 新しいチケットを追加するエンドポイント
-@router.post("/tickets/", response_model=str)
-def create_ticket(ticket: Ticket, db: Session = Depends(get_db)):
+# ? ユーザが管理者のみ実行可能にする必要あり
+#! 新しいチケットを追加するエンドポイント
+@router.post("/tickets/", status_code=201)
+def create_ticket(ticket: TicketSchema, db: Session = Depends(get_db)):
     # 既存のチケットを検索
     existing_ticket = db.query(Tickets).filter_by(name=ticket.name).first()
     if existing_ticket:
-        # チケットがすでに存在する場合は 400 エラーを返す
-        raise HTTPException(status_code=400, detail="Ticket already exists with this name")
+        raise HTTPException(status_code=409, detail="Ticket already exists with this name")
+
+    # 画像URLが有効か確認
+    if not validateImageURL(ticket.img_url):
+        raise HTTPException(status_code=400, detail="Invalid Image URL")
 
     # 新しいチケットを追加
     new_ticket = Tickets(**ticket.model_dump())
@@ -38,28 +52,34 @@ def create_ticket(ticket: Ticket, db: Session = Depends(get_db)):
     return "Ticket created"
 
 
-# 既存チケットを削除するエンドポイント
-@router.delete("/tickets/{ticket_id}", response_model=str)
+# ? ユーザが管理者のみ実行可能にする必要あり
+#! 既存チケットを削除するエンドポイント
+@router.delete("/tickets/{ticket_id}", status_code=201)
 def delete_ticket(ticket_id: int, db: Session = Depends(get_db)):
     # 既存のチケットが存在するか確認
     ticket = db.query(Tickets).filter_by(id=ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=400, detail="Ticket does not exist with this id")
-    
+
     # チケットを削除
     db.delete(ticket)
     db.commit()
     return "Ticket deleted"
 
 
-# チケット情報を更新するエンドポイント
-@router.put("/tickets/{ticket_id}", response_model=str)
-def update_ticket(ticket_id: int, ticket: Ticket, db: Session = Depends(get_db)):
+# ? ユーザが管理者のみ実行可能にする必要あり
+#! チケット情報を更新するエンドポイント
+@router.put("/tickets/{ticket_id}", status_code=200)
+def update_ticket(ticket_id: int, ticket: TicketSchema, db: Session = Depends(get_db)):
     # 既存のチケットが存在するか確認
     existing_ticket = db.query(Tickets).filter_by(id=ticket_id).first()
     if not existing_ticket:
         raise HTTPException(status_code=400, detail="Ticket does not exist with this id")
-    
+
+    # 画像URLが有効か確認
+    if not validateImageURL(ticket.img_url):
+        raise HTTPException(status_code=400, detail="Invalid Image URL")
+
     # チケット情報を更新
     existing_ticket.name = ticket.name
     existing_ticket.price = ticket.price

@@ -1,59 +1,53 @@
-from fastapi import  HTTPException, Depends
+from fastapi import HTTPException, Depends, APIRouter, Response
 from sqlalchemy.orm import Session
-from ..schema import  UserEmail , UserId
-from ..database import  Users
-from fastapi import APIRouter
-from ..database import SessionClass
-import uuid
+from ..database import Users
+from .util.util import get_db, verify_token
 
 router = APIRouter()
 
-# データベースセッションを作成する依存関係
-def get_db():
-    db = SessionClass()
-    try:
-        yield db
-    finally:
-        db.close()
+
+#! 全てのユーザを取得 (Array)
+@router.get("/users", status_code=200)
+async def get_users(db: Session = Depends(get_db)):
+    users = db.query(Users).all()
+    # ユーザーが存在しない場合は 204 エラーを返す
+    if not users:
+        return Response(status_code=204)
+
+    return users
 
 
-#ユーザー情報を取得するエンドポイント
-@router.post("/user_info")
-def get_users(user_email:UserEmail,db: Session = Depends(get_db)):
-    # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(email=user_email.email).first()
-    if not user:
-        raise HTTPException(status_code=400, detail="User not found")
-    return user
+#! トークンからemailを取得 (string)
+@router.get("/user", status_code=200)
+async def get_user(user=Depends(verify_token), db: Session = Depends(get_db)):
+    # ユーザーを検索
+    target_user = db.query(Users).filter_by(email=user["email"]).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return target_user.email
 
 
-#新しいユーザーを作成するエンドポイント
-@router.post("/user", response_model=str)
-def create_user(user_email: UserEmail, db: Session = Depends(get_db)):
-    # 既存のユーザーを検索
-    existing_user = db.query(Users).filter_by(email=user_email.email).first()
-    if existing_user:
-        # ユーザーがすでに存在する場合は 400 エラーを返す
-        raise HTTPException(status_code=400, detail="User already exists with this email")
+#! トークンからユーザーを追加
+@router.post("/user", status_code=201)
+async def add_user(user=Depends(verify_token), db: Session = Depends(get_db)):
+    # ユーザーがすでに存在するかどうかを確認
+    old_user = db.query(Users).filter_by(email=user["email"]).first()
+    if old_user:
+        raise HTTPException(status_code=409, detail="User already exists")
 
-    # 新しいユーザーを追加
-    user_id = str(uuid.uuid4())
-    new_user = Users(id=user_id, email=user_email.email)
+    new_user = Users(id=user["uid"], email=user["email"])
     db.add(new_user)
     db.commit()
-    db.refresh(new_user)
-    return "User created"
+    return "User added successfully"
 
 
-#既存ユーザを削除するエンドポイント
-@router.delete("/user", response_model=str)
-def delete_user(user_id: UserId, db: Session = Depends(get_db)):
-    # ユーザーが存在するか確認
-    user = db.query(Users).filter_by(id=user_id.id).first()
-    if not user:
-        raise HTTPException(status_code=400, detail="User does not exist with this id")
-
-    # ユーザーを削除
-    db.delete(user)
+#! ユーザを削除
+@router.delete("/user", status_code=201)
+async def delete_user(user=Depends(verify_token), db: Session = Depends(get_db)):
+    # ユーザーを検索
+    target_user = db.query(Users).filter_by(email=user["email"]).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(target_user)
     db.commit()
-    return "User deleted"
+    return "User deleted successfully"

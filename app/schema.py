@@ -2,7 +2,8 @@ from pydantic import BaseModel
 from datetime import datetime
 
 
-class Ticket(BaseModel):
+#! チケットの情報を格納するためのクラス
+class TicketSchema(BaseModel):
     name: str
     description: str
     img_url: str
@@ -13,19 +14,8 @@ class Ticket(BaseModel):
         orm_mode = True
 
 
-class UserEmail(BaseModel):
-    email: str
-
-    class Config:
-        orm_mode = True
-        
-class UserId(BaseModel):
-    id: str
-
-    class Config:
-        orm_mode = True
-
-class Cart(BaseModel):
+#! カートの情報を格納するためのクラス
+class CartSchema(BaseModel):
     user_id: str
     ticket_id: int
 
@@ -33,10 +23,11 @@ class Cart(BaseModel):
         orm_mode = True
 
 
-class Order(BaseModel):
+#! 注文の情報を格納するためのクラス
+class OrderSchema(BaseModel):
     user_id: str
-    payment_link: str #支払いリンク
-    code_id: str #QRコードのID
+    payment_link: str  # 支払いリンク
+    code_id: str  # QRコードのID
     status: str
     date: datetime
 
@@ -44,17 +35,19 @@ class Order(BaseModel):
         orm_mode = True
 
 
-class OrderItem(BaseModel):
-    order_id: int
-    ticket_id: int
-    quantity: int
+#! 注文アイテムの情報を格納するためのクラス
+class submitNotificationSchema(BaseModel):
+    token: str
 
     class Config:
         orm_mode = True
 
-class OrderInfo(BaseModel):
-    user_id : str
-    order_id : str
+
+#! 通知の情報を格納するためのクラス
+class sendNotificationSchema(BaseModel):
+    target_id: str
+    title: str
+    body: str
 
     class Config:
         orm_mode = True
