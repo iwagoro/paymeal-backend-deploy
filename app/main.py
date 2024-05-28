@@ -1,29 +1,40 @@
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI
-
-from mangum import Mangum
-from .endpoints.ticket import router as ticket_router
-from .endpoints.user import router as user_router
-from .endpoints.cart import router as cart_router
-from .endpoints.payment import router as payment_router
-from .endpoints.order import router as order_router
-from .endpoints.notification import router as notification_router
 from firebase_admin import credentials
 import firebase_admin
+from database import engine, init_db
+from typing import Any, Optional
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import HTTPException
+from endpoints.ticket.admin import router as ticket_router_admin
+from endpoints.ticket.user import router as ticket_router_user
+from endpoints.user.user import router as user_router_user
+from endpoints.user.admin import router as user_router_admin
+from endpoints.cart.user import router as cart_router
+from endpoints.payment import router as payment_router
+from endpoints.order.user import router as order_router_user
+from endpoints.order.admin import router as order_router_admin
+from endpoints.analytics import router as analytics_router
+from fastapi import FastAPI, Response
 
-# FastAPI のアプリケーションを作成
-app = FastAPI()
+# Initialize the database
+init_db()
 
-cred = credentials.Certificate("firebase-admin.json")  # Firebase Admin SDK キー
+# Initialize Firebase
+cred = credentials.Certificate("firebase-admin.json")
 firebase_admin.initialize_app(cred)
+
+# Create FastAPI app
+app = FastAPI()
 
 origins = [
     "http://localhost",
     "http://localhost:8000",
     "http://localhost:3000",
+    "http://localhost:8501",
     "http://localhost:3001",
-    "https://localhost:3000",
 ]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,10 +45,18 @@ app.add_middleware(
 )
 
 
-handler = Mangum(app)
-app.include_router(ticket_router)
-app.include_router(user_router)
+@app.get("/test")
+def test():
+    return Response(status_code=201, content="Test successful")
+
+
+# Include routers
+app.include_router(ticket_router_admin)
+app.include_router(ticket_router_user)
+app.include_router(user_router_user)
+app.include_router(user_router_admin)
 app.include_router(cart_router)
 app.include_router(payment_router)
-app.include_router(order_router)
-app.include_router(notification_router)
+app.include_router(order_router_user)
+app.include_router(order_router_admin)
+app.include_router(analytics_router)

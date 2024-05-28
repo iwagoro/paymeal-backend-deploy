@@ -1,37 +1,37 @@
 import paypayopa
 from fastapi import HTTPException
-from dotenv import load_dotenv
 import os
 
-load_dotenv()
 
-API_KEY = os.getenv("API_KEY")
-SECRET_KEY = os.getenv("SECRET_KEY")
-MERCHANT_ID = os.getenv("MERCHANT_ID")
+API_KEY = os.environ["API_KEY"]
+SECRET_KEY = os.environ["SECRET_KEY"]
+MERCHANT_ID = os.environ["MERCHANT_ID"]
+
+
+client = paypayopa.Client(
+    auth=(API_KEY, SECRET_KEY),
+    production_mode=False,
+)
+client.set_assume_merchant(MERCHANT_ID)
 
 
 #! 支払いを作成する関数
 def create_payment(payment_id, orders, total):
-
-    client = paypayopa.Client(
-        auth=(API_KEY, SECRET_KEY),
-        production_mode=False,
-    )
-    client.set_assume_merchant(MERCHANT_ID)
+    # ? 注文内容を作成
     request = {
         "merchantPaymentId": payment_id,
         "codeType": "ORDER_QR",
-        "redirectUrl": "http://localhost:3000/bag",
+        "redirectUrl": "http://localhost:3000/cart",
         "redirectType": "WEB_LINK",
-        "orderDescription": "TOKUYAMA - GAKUSHOKU",
+        "orderDescription": "Paymeal",
         "orderItems": orders,
         "amount": {"amount": total, "currency": "JPY"},
     }
-
+    # ? QRコードを作成
     response = client.Code.create_qr_code(request)
-    # urlが取得できなかった場合はエラーを返す
+    # ? urlが取得できなかった場合はエラーを返す
     if response["resultInfo"]["code"] != "SUCCESS":
-        raise HTTPException(status_code=400, detail="Payment creation failed")
+        raise HTTPException(status_code=400, detail="PAYMENT CREATION FAILED")
     code_id = response["data"]["codeId"]
     url = response["data"]["url"]
     return url, code_id
@@ -39,35 +39,24 @@ def create_payment(payment_id, orders, total):
 
 #! 支払いを削除する関数
 def delete_payment(code_id):
-    client = paypayopa.Client(
-        auth=(API_KEY, SECRET_KEY),
-        production_mode=False,
-    )
-    client.set_assume_merchant(MERCHANT_ID)
+    # ? QRコードを削除
     response = client.Code.delete_qr_code(code_id)
-    # 削除に失敗した場合はエラーを返す
+    # ?削除に失敗した場合はエラーを返す
     if response["resultInfo"]["code"] != "SUCCESS":
-        raise HTTPException(status_code=400, detail="Payment deletion failed")
-    return response["resultInfo"]["code"]
+        raise HTTPException(status_code=400, detail="PAYMENT DELETION FAILED")
 
 
 #! 支払いの詳細を取得する関数
 def get_payment_details(payment_id):
-    client = paypayopa.Client(
-        auth=(API_KEY, SECRET_KEY),
-        production_mode=False,
-    )
-    client.set_assume_merchant(MERCHANT_ID)
+    # ? 支払いの詳細を取得
     response = client.Payment.get_payment_details(payment_id)
-    return response["resultInfo"]["code"]
+    # ? 支払いが成功しているか確認
+    if response["resultInfo"]["code"] != "SUCCESS":
+        raise HTTPException(status_code=400, detail="PAYMENT FAILED")
 
 
 #! 決済をキャンセルする関数
 def cancel_payment(payment_id):
-    client = paypayopa.Client(
-        auth=(API_KEY, SECRET_KEY),
-        production_mode=False,
-    )
-    client.set_assume_merchant(MERCHANT_ID)
     response = client.Payment.cancel_payment(payment_id)
-    return response["resultInfo"]["code"]
+    if response["resultInfo"]["code"] != "SUCCESS":
+        raise HTTPException(status_code=400, detail="PAYMENT CANCELLATION FAILED")
