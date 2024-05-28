@@ -33,6 +33,8 @@ origins = [
     "http://localhost:3000",
     "http://localhost:8501",
     "http://localhost:3001",
+    "https://paymeal-admin.vercel.app",
+    "https://pay-meal.vercel.app",
 ]
 
 
