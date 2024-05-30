@@ -110,6 +110,8 @@ def create_order(order_id: str, user=Depends(verify_token), db: Session = Depend
         raise HTTPException(status_code=400, detail="Invalid order status")
     if not is_orderable_time():
         raise HTTPException(status_code=400, detail="Not orderable time")
+    if order.date.date() != datetime.datetime.now().date():
+        raise HTTPException(status_code=400, detail="Ticket is expired")
 
     try:
         # ?レスポンスを作成

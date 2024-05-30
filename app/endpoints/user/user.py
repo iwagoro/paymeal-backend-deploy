@@ -68,3 +68,25 @@ async def get_user_monthly_usage(user=Depends(verify_token), db: Session = Depen
         raise HTTPException(status_code=404, detail="No orders found")
     total = sum([item.total for item in result])
     return {"total": total}
+
+
+#! ユーザの先月の購入額を取得
+@router.get("/user/usage/last_month", status_code=200)
+async def get_user_last_monthly_usage(user=Depends(verify_token), db: Session = Depends(get_db)):
+    # ? ユーザを取得
+    target = get_user_by_email(db, user["email"])
+
+    # ? ユーザの先月の注文を取得
+    result = (
+        db.query(Orders)
+        .filter(
+            Orders.user_id == target.id,
+            or_(Orders.status == "purchased", Orders.status == "ordered", Orders.status == "completed"),
+            extract("month", Orders.date) == datetime.now().month - 1,
+        )
+        .all()
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="No orders found")
+    total = sum([item.total for item in result])
+    return {"total": total}

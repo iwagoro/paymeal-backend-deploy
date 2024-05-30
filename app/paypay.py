@@ -21,7 +21,7 @@ def create_payment(payment_id, orders, total):
     request = {
         "merchantPaymentId": payment_id,
         "codeType": "ORDER_QR",
-        "redirectUrl": "http://localhost:3000/cart",
+        "redirectUrl": "https://pay-meal.vercel.app/cart",
         "redirectType": "WEB_LINK",
         "orderDescription": "Paymeal",
         "orderItems": orders,

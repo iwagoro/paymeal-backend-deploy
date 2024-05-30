@@ -5,6 +5,9 @@ from models import Users, Orders, OrderItems, Tickets, AdminUsers
 from util.util import get_db, verify_token, create_response, create_error_response
 from datetime import datetime, timedelta
 from typing import Optional, List
+import pandas as pd
+from fastapi.encoders import jsonable_encoder
+
 
 router = APIRouter()
 
@@ -22,7 +25,7 @@ def get_user_by_email(db: Session, email: str):
 def get_monthly_sales(user=Depends(verify_token), db: Session = Depends(get_db)):
 
     # ?管理者の確認
-    target = db.query(AdminUsers).filter_by(email=user["email"]).first()
+    target = get_user_by_email(db, user["email"])
 
     # ?今日の日付を取得
     today = datetime.now()
@@ -55,7 +58,7 @@ def get_monthly_sales(user=Depends(verify_token), db: Session = Depends(get_db))
 @router.get("/sales/daily", status_code=200)
 async def get_daily_sales(user=Depends(verify_token), db: Session = Depends(get_db)):
     # ?管理者の確認
-    target = db.query(AdminUsers).filter_by(email=user["email"]).first()
+    target = get_user_by_email(db, user["email"])
     # ?今日の日付を取得
     today = datetime.now().date()
 
@@ -71,7 +74,7 @@ async def get_daily_sales(user=Depends(verify_token), db: Session = Depends(get_
 @router.get("/sales/weekly", status_code=200)
 async def get_weekly_sales(user=Depends(verify_token), db: Session = Depends(get_db)):
     # ? 管理者の確認
-    target = db.query(AdminUsers).filter_by(email=user["email"]).first()
+    target = get_user_by_email(db, user["email"])
 
     # ? 今日の日付を取得
     today = datetime.today().date()
@@ -90,15 +93,53 @@ async def get_weekly_sales(user=Depends(verify_token), db: Session = Depends(get
 @router.get("/sales/monthly", status_code=200)
 async def get_monthly_sales(user=Depends(verify_token), db: Session = Depends(get_db)):
     # ? 管理者の確認
-    target = db.query(AdminUsers).filter_by(email=user["email"]).first()
-    # ? 今日の日付を取得
-    today = datetime.today().date()
-    start = today.replace(day=1)
-    end = today.replace(day=1, month=today.month + 1) - timedelta(days=1)
-
+    target = get_user_by_email(db, user["email"])
+    # ?今日の日付を取得
+    today = datetime.now()
+    year = today.year
+    month = today.month
+    # ?月初と月末を取得
+    start = datetime(year, month, 1)
+    end = datetime(year, month + 1, 1)
     # ? 今月の注文を取得
     result = db.query(Orders).filter(Orders.date >= start, Orders.date <= end).all()
     if not result:
         raise HTTPException(status_code=404, detail="NO SALES FOUND")
 
     return {"total": sum([order.total for order in result])}
+
+
+# #! 1ヶ月間の人気のチケットを取得
+# @router.get("/analytics/popular", status_code=200)
+# async def get_popular_tickets(db: Session = Depends(get_db)):
+#     # # ? 管理者の確認
+#     # target = get_user_by_email(db, user["email"])
+#     # ?今日の日付を取得
+#     today = datetime.now()
+#     year = today.year
+#     month = today.month
+#     # ?月初と月末を取得
+#     start = datetime(year, month, 1)
+#     end = datetime(year, month + 1, 1)
+#     # ? 1ヶ月間の注文を取得
+#     orders = (
+#         db.query(Orders)
+#         .filter(
+#             or_(Orders.status == "purchased", Orders.status == "ordered", Orders.status == "completed"),
+#             Orders.date >= start,
+#             Orders.date < end,
+#         )
+#         .all()
+#     )
+#     order_items = db.query(OrderItems).filter(OrderItems.order_id.in_([order.id for order in orders])).all()
+#     # ? data frame に変換
+#     orders = pd.DataFrame(jsonable_encoder(orders))
+#     order_items = pd.DataFrame(jsonable_encoder(order_items))
+
+#     tickets = db.query(Tickets).all()
+
+#     for ticket in tickets:
+#         ticket["total"] = sum([item.quantity for item in order_items if item.ticket_id == ticket.id])
+
+
+#     return {"orders": orders, "order_items": order_items}
