@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import pandas as pd
 from fastapi.encoders import jsonable_encoder
+import pytz
 
 
 router = APIRouter()
@@ -28,7 +29,8 @@ def get_monthly_sales(user=Depends(verify_token), db: Session = Depends(get_db))
     target = get_user_by_email(db, user["email"])
 
     # ?今日の日付を取得
-    today = datetime.now()
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
+    today = datetime.now(tokyo_tz)
     year = today.year
     month = today.month
     # ?月初と月末を取得
@@ -60,7 +62,8 @@ async def get_daily_sales(user=Depends(verify_token), db: Session = Depends(get_
     # ?管理者の確認
     target = get_user_by_email(db, user["email"])
     # ?今日の日付を取得
-    today = datetime.now().date()
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
+    today = datetime.now(tokyo_tz=pytz.timezone("Asia/Tokyo")).date()
 
     # ?今日の売上を取得
     result = db.query(Orders).filter(Orders.date == today).all()
@@ -95,7 +98,8 @@ async def get_monthly_sales(user=Depends(verify_token), db: Session = Depends(ge
     # ? 管理者の確認
     target = get_user_by_email(db, user["email"])
     # ?今日の日付を取得
-    today = datetime.now()
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
+    today = datetime.now(tokyo_tz)
     year = today.year
     month = today.month
     # ?月初と月末を取得

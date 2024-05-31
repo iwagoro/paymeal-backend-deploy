@@ -8,6 +8,7 @@ from sqlalchemy.sql import extract
 from datetime import datetime, timedelta
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 import os
+import pytz
 
 
 router = APIRouter()
@@ -53,14 +54,14 @@ async def add_user(user=Depends(verify_token), db: Session = Depends(get_db)):
 async def get_user_monthly_usage(user=Depends(verify_token), db: Session = Depends(get_db)):
     # ? ユーザを取得
     target = get_user_by_email(db, user["email"])
-
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
     # ? ユーザの今月の注文を取得
     result = (
         db.query(Orders)
         .filter(
             Orders.user_id == target.id,
             or_(Orders.status == "purchased", Orders.status == "ordered", Orders.status == "completed"),
-            extract("month", Orders.date) == datetime.now().month,
+            extract("month", Orders.date) == datetime.now(tokyo_tz).month,
         )
         .all()
     )
@@ -75,14 +76,14 @@ async def get_user_monthly_usage(user=Depends(verify_token), db: Session = Depen
 async def get_user_last_monthly_usage(user=Depends(verify_token), db: Session = Depends(get_db)):
     # ? ユーザを取得
     target = get_user_by_email(db, user["email"])
-
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
     # ? ユーザの先月の注文を取得
     result = (
         db.query(Orders)
         .filter(
             Orders.user_id == target.id,
             or_(Orders.status == "purchased", Orders.status == "ordered", Orders.status == "completed"),
-            extract("month", Orders.date) == datetime.now().month - 1,
+            extract("month", Orders.date) == datetime.now(tokyo_tz).month - 1,
         )
         .all()
     )

@@ -6,6 +6,7 @@ from models import Users, Orders, OrderItems, Tickets, AdminUsers
 from util.util import get_db, verify_token, create_error_response, create_response
 from datetime import datetime
 from typing import Optional
+import pytz
 
 router = APIRouter()
 
@@ -48,7 +49,8 @@ def get_today_orders(user=Depends(verify_token), db: Session = Depends(get_db)):
     target = get_user_by_email(db, user["email"])
 
     # ? 今日の注文を取得
-    today = datetime.now().date()
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
+    today = datetime.now(tokyo_tz).date()
     orders = (
         db.query(Orders)
         .filter(

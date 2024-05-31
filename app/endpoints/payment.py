@@ -5,6 +5,7 @@ from paypay import create_payment, get_payment_details, delete_payment
 from util.util import get_db, verify_token
 from datetime import datetime
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+import pytz
 
 router = APIRouter()
 
@@ -105,7 +106,8 @@ def complete_purchase(order_id: str, user=Depends(verify_token), db: Session = D
 
     # ? 注文情報の更新
     last_number = 0
-    today = datetime.now().date()
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
+    today = datetime.now(tokyo_tz).date()
     # ? 最後の注文番号を取得
     last_order = db.query(Orders).filter(Orders.date != None).order_by(Orders.date.desc()).first()
 

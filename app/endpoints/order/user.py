@@ -5,13 +5,15 @@ from models import Users, Orders, OrderItems, Tickets
 from util.util import get_db, verify_token, create_response, create_error_response
 from sqlalchemy.exc import SQLAlchemyError
 import datetime
+import pytz
 
 router = APIRouter()
 
 
 # * 注文可能時間か確認する関数
 def is_orderable_time():
-    now = datetime.datetime.now()
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
+    now = datetime.datetime.now(tokyo_tz)
     if now.hour > 11 or now.hour < 13:
         return True
     return False
@@ -102,6 +104,7 @@ def create_order(order_id: str, user=Depends(verify_token), db: Session = Depend
 
     # ? ユーザを取得
     target = get_user_by_email(db, user["email"])
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
     # ? 注文を取得
     order = db.query(Orders).filter_by(id=order_id).first()
     if not order:
@@ -110,7 +113,7 @@ def create_order(order_id: str, user=Depends(verify_token), db: Session = Depend
         raise HTTPException(status_code=400, detail="Invalid order status")
     if not is_orderable_time():
         raise HTTPException(status_code=400, detail="Not orderable time")
-    if order.date.date() != datetime.datetime.now().date():
+    if order.date.date() != datetime.datetime.now(tokyo_tz).date():
         raise HTTPException(status_code=400, detail="Ticket is expired")
 
     try:
