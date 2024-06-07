@@ -107,7 +107,7 @@ def complete_purchase(order_id: str, user=Depends(verify_token), db: Session = D
     # ? 注文情報の更新
     last_number = 0
     tokyo_tz = pytz.timezone("Asia/Tokyo")
-    today = datetime.now(tokyo_tz).date()
+    today = datetime.now(tokyo_tz)
     # ? 最後の注文番号を取得
     last_order = db.query(Orders).filter(Orders.date != None).order_by(Orders.date.desc()).first()
 
