@@ -4,7 +4,7 @@ from sqlalchemy import or_, desc
 from models import Users, Orders, OrderItems, Tickets
 from util.util import get_db, verify_token, create_response, create_error_response
 from sqlalchemy.exc import SQLAlchemyError
-import datetime
+from datetime import datetime
 import pytz
 
 router = APIRouter()
