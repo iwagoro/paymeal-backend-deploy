@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import credentials
@@ -16,6 +17,7 @@ from endpoints.order.user import router as order_router_user
 from endpoints.order.admin import router as order_router_admin
 from endpoints.analytics import router as analytics_router
 from fastapi import FastAPI, Response
+import pytz
 
 # Initialize the database
 init_db()
@@ -29,9 +31,7 @@ app = FastAPI()
 
 origins = [
     "http://localhost",
-    "http://localhost:8000",
     "http://localhost:3000",
-    "http://localhost:8501",
     "http://localhost:3001",
     "https://paymeal-admin.vercel.app",
     "https://pay-meal.vercel.app",
@@ -46,10 +46,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.get("/test")
-def test():
-    return Response(status_code=201, content="Test successful")
 
 
 # Include routers

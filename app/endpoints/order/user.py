@@ -54,6 +54,10 @@ def get_order_details(db: Session, orders):
 def get_latest_order(user=Depends(verify_token), db: Session = Depends(get_db)):
     # ? ユーザを取得
     target = get_user_by_email(db, user["email"])
+    
+    #?　今日の日付を取得
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
+    today = datetime.now(tokyo_tz).date()
 
     # ? 最新の注文を取得
     order = (
@@ -61,6 +65,7 @@ def get_latest_order(user=Depends(verify_token), db: Session = Depends(get_db)):
         .filter(
             Orders.user_id == target.id,
             or_(Orders.status == "purchased", Orders.status == "ordered", Orders.status == "completed"),
+            Orders.date == today
         )
         .order_by(desc(Orders.date))
         .first()
