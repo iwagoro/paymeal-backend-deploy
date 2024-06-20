@@ -9,6 +9,7 @@ db_pass = os.environ["DB_PASSWORD"]
 db_host = os.environ["DB_HOST"]
 db_name = os.environ["DB_NAME"]
 url = f"postgresql+psycopg2://{db_user}:{db_pass}@{db_host}/{db_name}"
+print(url)
 engine = create_engine(url)
 
 SessionLocal = sessionmaker(bind=engine)

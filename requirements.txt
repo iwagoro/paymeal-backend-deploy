@@ -11,3 +11,6 @@ pymysql
 pandas
 seaborn
 pytz
+matplotlib
+streamlit
+streamlit-pills

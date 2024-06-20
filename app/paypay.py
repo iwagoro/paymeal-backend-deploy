@@ -27,14 +27,19 @@ def create_payment(payment_id, orders, total):
         "orderItems": orders,
         "amount": {"amount": total, "currency": "JPY"},
     }
-    # ? QRコードを作成
-    response = client.Code.create_qr_code(request)
-    # ? urlが取得できなかった場合はエラーを返す
-    if response["resultInfo"]["code"] != "SUCCESS":
+
+    try:
+        # ? QRコードを作成
+        response = client.Code.create_qr_code(request)
+        # ? urlが取得できなかった場合はエラーを返す
+        if response["resultInfo"]["code"] != "SUCCESS":
+            raise HTTPException(status_code=400, detail="PAYMENT CREATION FAILED")
+        code_id = response["data"]["codeId"]
+        url = response["data"]["url"]
+        return url, code_id
+    except Exception as e:
+        print(e)
         raise HTTPException(status_code=400, detail="PAYMENT CREATION FAILED")
-    code_id = response["data"]["codeId"]
-    url = response["data"]["url"]
-    return url, code_id
 
 
 #! 支払いを削除する関数

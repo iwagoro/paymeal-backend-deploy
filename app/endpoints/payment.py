@@ -1,8 +1,8 @@
 from fastapi import HTTPException, Depends, APIRouter, Response
 from sqlalchemy.orm import Session
-from models import Users, Orders, OrderItems, Tickets
+from models import Users, Orders, OrderItems, Tickets,Stocks
 from paypay import create_payment, get_payment_details, delete_payment
-from util.util import get_db, verify_token
+from util.util import get_db, verify_token,get_user_by_email,get_today
 from datetime import datetime
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 import pytz
@@ -17,81 +17,87 @@ STARTING_ORDER_NUMBER = 200
 def decrease_ticket_quantity(tickets, db: Session):
     for item in tickets:
         ticket = db.query(Tickets).filter_by(id=item.ticket_id).first()
-        ticket.stock -= item.quantity
-        db.add(ticket)
-
-
-# * ユーザを確認する関数
-def get_user_by_email(db: Session, email: str):
-    user = db.query(Users).filter_by(email=email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
-
+        if ticket:
+            stock = db.query(Stocks).filter_by(ticket_id=ticket.id).first()
+            if stock:
+                stock.unit_sales += item.quantity
+                db.add(stock)
 
 #! 決済リンクの取得
-@router.post("/payment/create/{order_id}", status_code=200)
+@router.get("/payment/", status_code=200)
 def create_order(order_id: str, user=Depends(verify_token), db: Session = Depends(get_db)):
-    # ? ユーザの確認
-    target = get_user_by_email(db, user["email"])
-
-    # ? カートの確認
-    cart = db.query(Orders).filter_by(user_id=target.id, id=order_id).first()
-    if not cart:
-        raise HTTPException(status_code=404, detail="Cart not found")
-
-    # ? カートが購入済みでないことを確認
-    if cart.status != "not_purchased":
-        raise HTTPException(status_code=400, detail="Invalid Request")
-
-    # ? カートにアイテムがあることを確認
-    cart_items = db.query(OrderItems).filter_by(order_id=cart.id).all()
-    if not cart_items:
-        raise HTTPException(status_code=400, detail="Cart is empty")
-
-    # ? カート内の各アイテムの在庫があるか確認
-    for item in cart_items:
-        ticket = db.query(Tickets).filter_by(id=item.ticket_id).first()
-        if ticket.stock < item.quantity:
-            raise HTTPException(status_code=400, detail="Out of stock")
-
-    # ? 注文の作成
-    order_content = []
-    for item in cart_items:
-        ticket = db.query(Tickets).filter_by(id=item.ticket_id).first()
-        order_content.append(
-            {
-                "name": ticket.name,
-                "price": ticket.price,
-                "quantity": item.quantity,
-                "productId": str(ticket.id),
-                "unitPrice": {"amount": ticket.price, "currency": "JPY"},
-            }
-        )
-    # ? paypay決済リンクの作成
-    total = sum([item.quantity * db.query(Tickets).filter_by(id=item.ticket_id).first().price for item in cart_items])
-    url, code_id = create_payment(cart.id, order_content, total)
-
     try:
-        # ? カートの更新
+        # ? ユーザの確認
+        target = get_user_by_email(db, user["email"])
+
+        # ? カートの確認
+        cart = db.query(Orders).filter_by(user_id=target.id, id=order_id).first()
+        if not cart:
+            raise HTTPException(status_code=404, detail="Cart not found")
+
+        # ? カートが購入済みでないことを確認
+        if cart.status != "not_purchased":
+            raise HTTPException(status_code=400, detail="Invalid Request")
+
+        # ? カートにアイテムがあることを確認
+        cart_items = db.query(OrderItems).filter_by(order_id=cart.id).all()
+        if not cart_items:
+            raise HTTPException(status_code=400, detail="Cart is empty")
+
+        # ? カート内の各アイテムの在庫があるか確認
+        ticket_ids = [item.ticket_id for item in cart_items]
+        tickets = db.query(Tickets, Stocks).join(Stocks, Stocks.ticket_id == Tickets.id).filter(Tickets.id.in_(ticket_ids)).all()
+
+        ticket_stock_map = {ticket.Tickets.id: ticket for ticket in tickets}
+
+        for item in cart_items:
+            if item.ticket_id not in ticket_stock_map:
+                raise HTTPException(status_code=400, detail=f"Ticket ID {item.ticket_id} not found")
+            ticket, stock = ticket_stock_map[item.ticket_id]
+            if stock.stock - stock.unit_sales < item.quantity:
+                raise HTTPException(status_code=400, detail=f"Out of stock for Ticket ID {item.ticket_id}")
+
+        # ? 注文の作成
+        order_content = [
+            {
+                "name": ticket_stock_map[item.ticket_id].Tickets.name,
+                "price": ticket_stock_map[item.ticket_id].Tickets.price,
+                "quantity": item.quantity,
+                "productId": str(item.ticket_id),
+                "unitPrice": {"amount": ticket_stock_map[item.ticket_id].Tickets.price, "currency": "JPY"},
+            }
+            for item in cart_items
+        ]
+
+        # ? paypay決済リンクの作成
+        total = sum(item.quantity * ticket_stock_map[item.ticket_id].Tickets.price for item in cart_items)
+        url, code_id = create_payment(cart.id, order_content, total)
+
+        # ? トランザクションの開始
         cart.status = "processing"
         cart.code_id = code_id
         cart.payment_link = url
         db.add(cart)
+        
         # ? チケットの在庫を減らす
         decrease_ticket_quantity(cart_items, db)
+        
+        # ? コミット
         db.commit()
+        
         return {"url": url, "code_id": code_id}
+
     # ? 重複エラー
     except IntegrityError:
+        db.rollback()
         raise HTTPException(status_code=409, detail="Order already exists")
     # ? その他のエラー
     except SQLAlchemyError:
+        db.rollback()
         raise HTTPException(status_code=400, detail="Invalid Request")
 
-
 #! 決済を確認
-@router.post("/payment/confirm/{order_id}", status_code=200)
+@router.patch("/payment/", status_code=200)
 def complete_purchase(order_id: str, user=Depends(verify_token), db: Session = Depends(get_db)):
     # ? ユーザの確認
     target = get_user_by_email(db, user["email"])
@@ -105,14 +111,12 @@ def complete_purchase(order_id: str, user=Depends(verify_token), db: Session = D
     state = get_payment_details(cart.id)
 
     # ? 注文情報の更新
-    last_number = 0
-    tokyo_tz = pytz.timezone("Asia/Tokyo")
-    today = datetime.now(tokyo_tz)
+    today = get_today()
     # ? 最後の注文番号を取得
-    last_order = db.query(Orders).filter(Orders.date != None).order_by(Orders.date.desc()).first()
+    last_order = db.query(Orders).filter(Orders.purchase_date != None).order_by(Orders.purchase_date.desc()).first()
 
     # ? 今日初めての注文の場合
-    if not last_order or (last_order != None and last_order.date.date() != today):
+    if not last_order or (last_order != None and last_order.purchase_date != today):
         last_number = STARTING_ORDER_NUMBER
     # ? 今日の注文がある場合
     else:
@@ -122,7 +126,7 @@ def complete_purchase(order_id: str, user=Depends(verify_token), db: Session = D
     try:
         # ? カートの更新
         cart.number = order_number
-        cart.date = today
+        cart.purchase_date = today
         cart.status = "purchased"
         db.add(cart)
         db.commit()
@@ -134,7 +138,7 @@ def complete_purchase(order_id: str, user=Depends(verify_token), db: Session = D
 
 
 #! 決済リンクの削除
-@router.delete("/payment/delete/{order_id}", status_code=200)
+@router.delete("/payment/", status_code=200)
 def delete_payment_endpoint(order_id: str, user=Depends(verify_token), db: Session = Depends(get_db)):
     # ? ユーザの確認
     target = get_user_by_email(db, user["email"])
@@ -154,7 +158,7 @@ def delete_payment_endpoint(order_id: str, user=Depends(verify_token), db: Sessi
         cart_items = db.query(OrderItems).filter_by(order_id=cart.id).all()
         for item in cart_items:
             ticket = db.query(Tickets).filter_by(id=item.ticket_id).first()
-            ticket.stock += item.quantity
+            ticket.stocks.unit_sales -= item.quantity
             db.add(ticket)
         db.commit()
         db.refresh(cart)
@@ -163,33 +167,3 @@ def delete_payment_endpoint(order_id: str, user=Depends(verify_token), db: Sessi
     except SQLAlchemyError as e:
         raise HTTPException(status_code=400, detail="Invalid Request")
 
-
-#! 決済をキャンセル
-@router.delete("/payment/cancel/{order_id}", status_code=200)
-def cancel_payment(order_id: str, user=Depends(verify_token), db: Session = Depends(get_db)):
-    # ? ユーザの確認
-    target = get_user_by_email(db, user["email"])
-    # ? カートの確認
-    cart = db.query(Orders).filter_by(user_id=target.id, id=order_id).first()
-    if not cart:
-        raise HTTPException(status_code=404, detail="CART NOT FOUND")
-
-    # ?決済のキャンセル
-    state = delete_payment(cart.code_id)
-
-    try:
-        # ? カートの更新
-        cart.payment_link = None
-        cart.code_id = None
-        cart.status = "not_purchased"
-        db.add(cart)
-        # ? チケットの在庫を戻す
-        cart_items = db.query(OrderItems).filter_by(order_id=cart.id).all()
-        for item in cart_items:
-            ticket = db.query(Tickets).filter_by(id=item.ticket_id).first()
-            ticket.stock += item.quantity
-            db.add(ticket)
-        db.commit()
-        return Response(status_code=201)
-    except SQLAlchemyError as e:
-        raise HTTPException(status_code=400, detail="Invalid Request")

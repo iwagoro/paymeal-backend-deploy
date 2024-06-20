@@ -1,11 +1,12 @@
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, Header
+from requests import Session
 from database import SessionLocal as SessionClass
 from firebase_admin import auth
-from fastapi.responses import JSONResponse
 
-from fastapi.encoders import jsonable_encoder
-from schema import ErrorResponseModel, ResponseModel
-from typing import Any
+from models import Users
+import pytz
 
 
 # * データベースセッションを作成する依存関係
@@ -18,6 +19,43 @@ def get_db():
         raise
     finally:
         db.close()
+        
+
+# * 今日の日付を取得
+def get_today():
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
+    today = datetime.now(tokyo_tz).date()
+    return today
+
+# * 今月を取得
+def get_this_month():
+    today = get_today()
+    month_start = today + relativedelta(day=1)
+    month_end = today + relativedelta(months=+1,day=1,days=-1)
+    return month_start,month_end
+
+def get_last_month():
+    today = get_today()
+    month_start = today + relativedelta(day=1,months=-1)
+    month_end = today + relativedelta(day=1,days=-1)
+    return month_start,month_end
+
+
+
+# * 機能の日付を取得
+def get_yesterday():
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
+    today = datetime.now(tokyo_tz).date()
+    return today - timedelta(days=1)
+
+
+# * 注文可能時間か確認する関数
+def is_orderable_time():
+    tokyo_tz = pytz.timezone("Asia/Tokyo")
+    now = datetime.now(tokyo_tz)
+    if now.hour >= 11 and now.hour <= 13:
+        return True
+    return False
 
 
 # * ユーザーの認証を行うエンドポイント
@@ -32,13 +70,9 @@ def verify_token(authorization: str = Header(None)):
         raise HTTPException(status_code=401, detail="UNAUTHORIZED")
 
 
-# * レスポンスを作成する関数
-def create_response(status: str, code: int, message: str, data: Any = None) -> JSONResponse:
-    return JSONResponse(
-        status_code=code, content=ResponseModel(code=code, message=message, data=jsonable_encoder(data)).model_dump()
-    )
-
-
-# * エラーレスポンスを作成する関数
-def create_error_response(code: int, message: str) -> JSONResponse:
-    return JSONResponse(status_code=code, content=ErrorResponseModel(code=code, message=message).model_dump())
+# * ユーザを確認する関数
+def get_user_by_email(db: Session, email: str):
+    user = db.query(Users).filter_by(email=email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="UNAUTHORIZED")
+    return user
