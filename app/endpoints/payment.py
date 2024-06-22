@@ -85,7 +85,7 @@ def create_order(order_id: str, user=Depends(verify_token), db: Session = Depend
         # ? コミット
         db.commit()
         
-        return {"url": url, "code_id": code_id}
+        return url
 
     # ? 重複エラー
     except IntegrityError:
@@ -131,7 +131,7 @@ def complete_purchase(order_id: str, user=Depends(verify_token), db: Session = D
         db.add(cart)
         db.commit()
         db.refresh(cart)
-        return Response(status_code=201)
+        return {"message": "Purchase completed"}
 
     except SQLAlchemyError as e:
         raise HTTPException(status_code=400, detail="Invalid Request")

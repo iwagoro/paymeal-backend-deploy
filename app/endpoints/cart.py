@@ -57,7 +57,7 @@ def add_ticket_to_cart(ticket_id: str, user=Depends(verify_token), db: Session =
     cart = db.query(Orders).filter(Orders.user_id==target.id, Orders.status=="not_purchased").first()
     if not cart:
         try :
-            cart = Orders(user_id=target.id, status="not_purchased", id=str(uuid.uuid4()))
+            cart = Orders(user_id=target.id, status="not_purchased", id=str(uuid.uuid4(),total=0))
             db.add(cart)
             db.commit()
             db.refresh(cart)
@@ -79,7 +79,7 @@ def add_ticket_to_cart(ticket_id: str, user=Depends(verify_token), db: Session =
             db.add(order_item)
         cart.total += ticket.price
         db.commit()
-        return Response(status_code=201)
+        return {"message": "Ticket added to cart"}
     except SQLAlchemyError:
         raise HTTPException(status_code=400, detail="Invalid Request")
     
@@ -104,6 +104,6 @@ def delete_ticket_from_cart(ticket_id: str, user=Depends(verify_token), db: Sess
             db.delete(order_item)
         cart.total -= order_item.ticket.price
         db.commit()
-        return Response(status_code=204)
+        return {"message": "Ticket added to cart"}
     except SQLAlchemyError:
         raise HTTPException(status_code=400, detail="Invalid Request")

@@ -56,7 +56,7 @@ def get_latest_order(user=Depends(verify_token), db: Session = Depends(get_db)):
 def get_orders(status:str,user=Depends(verify_token), db: Session = Depends(get_db)):
     # ? ユーザを取得
     target = get_user_by_email(db, user["email"])
-    
+    print("this is orders all")
     if status != "purchased" and status != "ordered" and status != "completed":
         raise HTTPException(status_code=400, detail="Invalid status request")
 

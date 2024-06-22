@@ -4,7 +4,8 @@ from fastapi import HTTPException, Header
 from requests import Session
 from database import SessionLocal as SessionClass
 from firebase_admin import auth
-
+from dotenv import load_dotenv
+load_dotenv()
 from models import Users
 import pytz
 
