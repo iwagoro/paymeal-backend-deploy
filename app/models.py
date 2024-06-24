@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, ForeignKey, Date,JSON
 from sqlalchemy.orm import relationship
 from database import Base
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -19,6 +19,16 @@ class AdminUsers(Base):
     email = Column(String(255), unique=True)
     username = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
+    
+
+#! 日替わりメニューテーブル
+class DailyMenus(Base):
+    __tablename__ = "daily_menus"
+    ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="CASCADE"), primary_key=True)
+    contents = Column(JSON, nullable=False)
+    date = Column(Date, nullable=False, primary_key=True)
+
+    ticket = relationship("Tickets", back_populates="daily_menus")
 
 #! 食券テーブル
 class Tickets(Base):
@@ -32,8 +42,8 @@ class Tickets(Base):
 
     stocks = relationship("Stocks", back_populates="ticket", uselist=False)
     tags = relationship("TagRelations", back_populates="ticket")
-    daily_menus = relationship("DailyMenus", back_populates="ticket", uselist=False)
     popular_menus = relationship("PopularMenus", back_populates="ticket", uselist=False)
+    daily_menus = relationship("DailyMenus", back_populates="ticket", uselist=False)    
 
 #! 在庫テーブル
 class Stocks(Base):
@@ -44,19 +54,13 @@ class Stocks(Base):
 
     ticket = relationship("Tickets", back_populates="stocks")
 
-#! 日替わりメニューテーブル
-class DailyMenus(Base):
-    __tablename__ = "daily_menus"
-    ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="CASCADE"), primary_key=True)
-    date = Column(Date, nullable=False)
-
-    ticket = relationship("Tickets", back_populates="daily_menus")
 
 #! 人気メニューテーブル
 class PopularMenus(Base):
     __tablename__ = "popular_menus"
     ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="CASCADE"), primary_key=True)
     ranking = Column(Integer, nullable=False)  # 人気の順位を保持
+    date = Column(Date, nullable=False,primary_key=True)  # 計算した日付を保持
 
     ticket = relationship("Tickets", back_populates="popular_menus")
 

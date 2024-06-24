@@ -9,5 +9,5 @@ def tag_component(ticket, tags):
             if tag.id == tag_relation.tag_id:
                 isChecked = True
         if st.checkbox(tag.name, value=isChecked, key=f"{tag.name}_{ticket.id}"):
-            selected_tags.append(tag)
+            selected_tags.append(tag.id)  # Return tag.id instead of tag object
     return selected_tags

@@ -63,11 +63,13 @@ def is_orderable_time():
 def verify_token(authorization: str = Header(None)):
     token = authorization.split(" ")[1] if authorization else None
     if not token:
-        raise HTTPException(status_code=401, detail="UNAUTHORIZED")
+        raise HTTPException(status_code=401, detail="Need Token")
     try:
         decoded_token = auth.verify_id_token(token)
         return {"uid": decoded_token["uid"], "email": decoded_token["email"]}
     except Exception as e:
+        print(token)
+        print(e)
         raise HTTPException(status_code=401, detail="UNAUTHORIZED")
 
 

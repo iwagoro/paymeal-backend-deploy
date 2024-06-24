@@ -95,6 +95,7 @@ def create_order(order_id: str, user=Depends(verify_token), db: Session = Depend
     except SQLAlchemyError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Invalid Request")
+    
 
 #! 決済を確認
 @router.patch("/payment/", status_code=200)
@@ -113,10 +114,10 @@ def complete_purchase(order_id: str, user=Depends(verify_token), db: Session = D
     # ? 注文情報の更新
     today = get_today()
     # ? 最後の注文番号を取得
-    last_order = db.query(Orders).filter(Orders.purchase_date != None).order_by(Orders.purchase_date.desc()).first()
+    last_order = db.query(Orders).filter(Orders.purchase_date == today).order_by(Orders.number.desc()).first()
 
     # ? 今日初めての注文の場合
-    if not last_order or (last_order != None and last_order.purchase_date != today):
+    if not last_order:
         last_number = STARTING_ORDER_NUMBER
     # ? 今日の注文がある場合
     else:
@@ -162,7 +163,7 @@ def delete_payment_endpoint(order_id: str, user=Depends(verify_token), db: Sessi
             db.add(ticket)
         db.commit()
         db.refresh(cart)
-        return Response(status_code=201)
+        return {"message": "Payment deleted"}
 
     except SQLAlchemyError as e:
         raise HTTPException(status_code=400, detail="Invalid Request")
