@@ -34,6 +34,32 @@ async def add_user(user=Depends(verify_token), db: Session = Depends(get_db)):
     # ? その他のエラー
     except SQLAlchemyError:
         raise HTTPException(status_code=400, detail="Invalid Request")
+    
+@router.post("/user/notification")
+async def add_notification_token(token: str, user=Depends(verify_token), db: Session = Depends(get_db)):
+    try:
+        # ? ユーザを取得
+        target = get_user_by_email(db, user["email"])
+        # ? 通知トークンを更新
+        target.notification_token = token
+        db.commit()
+        return {"message": "Notification token added successfully"}
+    # ? その他のエラー
+    except SQLAlchemyError:
+        raise HTTPException(status_code=400, detail="Invalid Request")
+    
+@router.delete("/user/notification")    
+async def delete_notification_token(user=Depends(verify_token), db: Session = Depends(get_db)):
+    try:
+        # ? ユーザを取得
+        target = get_user_by_email(db, user["email"])
+        # ? 通知トークンを削除
+        target.notification_token = None
+        db.commit()
+        return {"message": "Notification token deleted successfully"}
+    # ? その他のエラー
+    except SQLAlchemyError:
+        raise HTTPException(status_code=400, detail="Invalid Request")
 
 
 #! ユーザの今月と先月の購入額を取得

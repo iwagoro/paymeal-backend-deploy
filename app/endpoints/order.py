@@ -22,9 +22,9 @@ def get_latest_order(user=Depends(verify_token), db: Session = Depends(get_db)):
         .filter(
             Orders.user_id == target.id,
             Orders.status != "not_purchased",
-            Orders.status != "processing"
+            Orders.status != "processing",
+            Orders.purchase_date == today
         )
-        .order_by(desc(Orders.purchase_date))
         .first()
     )
     if not order:
